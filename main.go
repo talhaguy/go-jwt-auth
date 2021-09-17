@@ -2,12 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/urfave/negroni"
 )
 
 var UserDb = make(map[string]string)
@@ -31,7 +34,55 @@ func setupRoutes() *mux.Router {
 	router.HandleFunc("/register", RegistrationHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
 	router.HandleFunc("/login", LoginHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
 	router.HandleFunc("/refresh", RefreshHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
+
+	subRouter := mux.NewRouter().PathPrefix("/api").Subrouter().StrictSlash(true)
+	subRouter.HandleFunc("/data", ApiDataHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
+
+	router.PathPrefix("/api").Handler(negroni.New(
+		negroni.HandlerFunc(VerifyAccessToken),
+		negroni.Wrap(subRouter),
+	))
+
 	return router
+}
+
+func VerifyAccessToken(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	log.Println("verifying access jwt")
+
+	accessTokenHeaderValue, ok := r.Header["Authorization"]
+	if !ok {
+		log.Println("missing access token")
+		WriteErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
+		return
+	}
+
+	log.Printf("DEBUG - token header val - %s", accessTokenHeaderValue)
+
+	token, err := getTokenFromAuthHeader(accessTokenHeaderValue[0])
+	if err != nil {
+		log.Println("could not find access token")
+		WriteErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
+		return
+	}
+
+	log.Printf("DEBUG - got token - %s", token)
+
+	// TODO: verify access JWT
+
+	next(rw, r)
+}
+
+func getTokenFromAuthHeader(headerVal string) (string, error) {
+	const tokenPrefix = "Bearer "
+	pos := strings.Index(headerVal, tokenPrefix)
+	if pos == -1 {
+		return "", errors.New("incorrect format")
+	}
+	pos = pos + len(tokenPrefix)
+
+	token := headerVal[pos:]
+
+	return token, nil
 }
 
 func RegistrationHandler(rw http.ResponseWriter, r *http.Request) {
@@ -206,6 +257,10 @@ func WriteErrorResponse(rw http.ResponseWriter, status int, message string) {
 	}
 
 	rw.Write(jsonResponse)
+}
+
+func ApiDataHandler(rw http.ResponseWriter, r *http.Request) {
+	log.Println("in api data handler")
 }
 
 type RegistrationForm struct {
