@@ -13,10 +13,8 @@ import (
 var UserDb = make(map[string]string)
 
 func main() {
-	router := mux.NewRouter()
-	router.HandleFunc("/register", RegistrationHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
-	router.HandleFunc("/login", LoginHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
-
+	router := setupRoutes()
+	// TODO: get port from args
 	server := &http.Server{
 		Handler:      router,
 		Addr:         "127.0.0.1:8080",
@@ -24,8 +22,16 @@ func main() {
 		ReadTimeout:  15 * time.Second,
 	}
 
-	log.Println("starting server")
+	log.Println("starting server on port 8080")
 	log.Fatal(server.ListenAndServe())
+}
+
+func setupRoutes() *mux.Router {
+	router := mux.NewRouter()
+	router.HandleFunc("/register", RegistrationHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
+	router.HandleFunc("/login", LoginHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
+	router.HandleFunc("/refresh", RefreshHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
+	return router
 }
 
 func RegistrationHandler(rw http.ResponseWriter, r *http.Request) {
@@ -66,6 +72,8 @@ func RegistrationHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Content-Type", "application/json")
 	rw.Write(jsonResponse)
 }
+
+const RefreshTokenCookieName = "refresh-token"
 
 func LoginHandler(rw http.ResponseWriter, r *http.Request) {
 	log.Println("login handler")
@@ -113,17 +121,64 @@ func LoginHandler(rw http.ResponseWriter, r *http.Request) {
 	refreshJWT := "refresh-jwt-12345"
 
 	http.SetCookie(rw, &http.Cookie{
-		Name:     "refresh-token",
+		Name:     RefreshTokenCookieName,
 		Value:    refreshJWT,
 		Expires:  time.Now().Add(time.Minute * 30),
 		HttpOnly: true,
 	})
 
-	serverResponse := &LoginServerResponse{
+	serverResponse := &AccessTokenServerResponse{
 		ServerResponse: ServerResponse{
 			Status: "SUCCESS",
 		},
-		Data: LoginServerResponseData{
+		Data: AccessTokenServerResponseData{
+			AccessToken: accessJWT,
+		},
+	}
+	jsonResponse, err := json.Marshal(serverResponse)
+	if err != nil {
+		WriteErrorResponse(rw, http.StatusInternalServerError, "could not create response")
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	rw.Write(jsonResponse)
+}
+
+func RefreshHandler(rw http.ResponseWriter, r *http.Request) {
+	refreshTokenCookie, err := r.Cookie(RefreshTokenCookieName)
+	if err != nil {
+		WriteErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
+		return
+	}
+
+	// TODO: validate JWT
+	_ = refreshTokenCookie
+
+	// TODO: check DB for disallowed refresh tokens
+
+	log.Printf("auth successful for refresh token")
+
+	// TODO: create access JWT
+	accessJWT := "access-jwt-12345"
+
+	// TODO: create refresh JWT
+	refreshJWT := "refresh-jwt-12345"
+
+	// TODO: store old refresh token in disallowed refresh tokens DB
+
+	http.SetCookie(rw, &http.Cookie{
+		Name:     RefreshTokenCookieName,
+		Value:    refreshJWT,
+		Expires:  time.Now().Add(time.Minute * 30),
+		HttpOnly: true,
+	})
+
+	serverResponse := &AccessTokenServerResponse{
+		ServerResponse: ServerResponse{
+			Status: "SUCCESS",
+		},
+		Data: AccessTokenServerResponseData{
 			AccessToken: accessJWT,
 		},
 	}
@@ -168,11 +223,11 @@ type ServerResponse struct {
 	Message string `json:"message"`
 }
 
-type LoginServerResponse struct {
+type AccessTokenServerResponse struct {
 	ServerResponse
-	Data LoginServerResponseData `json:"data"`
+	Data AccessTokenServerResponseData `json:"data"`
 }
 
-type LoginServerResponseData struct {
+type AccessTokenServerResponseData struct {
 	AccessToken string `json:"accessToken"`
 }
