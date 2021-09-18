@@ -13,7 +13,7 @@ func VerifyAccessToken(rw http.ResponseWriter, r *http.Request, next http.Handle
 	accessTokenHeaderValue, ok := r.Header["Authorization"]
 	if !ok {
 		log.Println("missing access token")
-		WriteErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
+		writeErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
 		return
 	}
 
@@ -22,7 +22,7 @@ func VerifyAccessToken(rw http.ResponseWriter, r *http.Request, next http.Handle
 	token, err := getTokenFromAuthHeader(accessTokenHeaderValue[0])
 	if err != nil {
 		log.Println("could not find access token")
-		WriteErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
+		writeErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
 		return
 	}
 

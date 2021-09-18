@@ -7,11 +7,16 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/talhaguy/go-jwt-auth/handler"
+	"github.com/talhaguy/go-jwt-auth/repository"
 	"github.com/urfave/negroni"
 )
 
 func StartServer(port string) {
-	router := setupRoutes()
+	handlers := handler.NewDefaultHandler(
+		repository.NewDefaultUserRepository(),
+		repository.NewDefaultBlacklistedRefreshTokenRepository(),
+	)
+	router := setupRoutes(handlers)
 	server := &http.Server{
 		Handler:      router,
 		Addr:         "127.0.0.1:" + port,
@@ -23,14 +28,14 @@ func StartServer(port string) {
 	log.Fatal(server.ListenAndServe())
 }
 
-func setupRoutes() *mux.Router {
+func setupRoutes(handlers handler.Handler) *mux.Router {
 	router := mux.NewRouter()
-	router.HandleFunc("/register", handler.RegistrationHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
-	router.HandleFunc("/login", handler.LoginHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
-	router.HandleFunc("/refresh", handler.RefreshHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
+	router.HandleFunc("/register", handlers.RegistrationHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
+	router.HandleFunc("/login", handlers.LoginHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
+	router.HandleFunc("/refresh", handlers.RefreshHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
 
 	subRouter := mux.NewRouter().PathPrefix("/api").Subrouter().StrictSlash(true)
-	subRouter.HandleFunc("/data", handler.ApiDataHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
+	subRouter.HandleFunc("/data", handlers.ApiDataHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
 
 	router.PathPrefix("/api").Handler(negroni.New(
 		negroni.HandlerFunc(handler.VerifyAccessToken),

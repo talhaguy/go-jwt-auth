@@ -6,24 +6,46 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/talhaguy/go-jwt-auth/repository"
 )
 
-var UserDb = make(map[string]string)
+type Handler interface {
+	RegistrationHandler(rw http.ResponseWriter, r *http.Request)
+	LoginHandler(rw http.ResponseWriter, r *http.Request)
+	RefreshHandler(rw http.ResponseWriter, r *http.Request)
+	ApiDataHandler(rw http.ResponseWriter, r *http.Request)
+}
 
-func RegistrationHandler(rw http.ResponseWriter, r *http.Request) {
+type DefaultHander struct {
+	userRepo                    repository.UserRepository
+	blacklistedRefreshTokenRepo repository.BlacklistedRefreshTokenRepository
+}
+
+func NewDefaultHandler(
+	userRepo repository.UserRepository,
+	blacklistedRefreshTokenRepo repository.BlacklistedRefreshTokenRepository,
+) *DefaultHander {
+	return &DefaultHander{
+		userRepo:                    userRepo,
+		blacklistedRefreshTokenRepo: blacklistedRefreshTokenRepo,
+	}
+}
+
+func (h *DefaultHander) RegistrationHandler(rw http.ResponseWriter, r *http.Request) {
 	log.Println("registration handler")
 
 	jsonForm, err := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	if err != nil {
-		WriteErrorResponse(rw, http.StatusInternalServerError, "could not read body")
+		writeErrorResponse(rw, http.StatusInternalServerError, "could not read body")
 		return
 	}
 
 	var registrationForm RegistrationForm
 	err = json.Unmarshal(jsonForm, &registrationForm)
 	if err != nil {
-		WriteErrorResponse(rw, http.StatusBadRequest, "could not parse json")
+		writeErrorResponse(rw, http.StatusBadRequest, "could not parse json")
 		return
 	}
 
@@ -32,16 +54,19 @@ func RegistrationHandler(rw http.ResponseWriter, r *http.Request) {
 	// TODO: check if user exists in DB validation
 	// TODO: hash password
 
-	// TODO: registration
 	log.Printf("registering user %s", registrationForm.Username)
-	UserDb[registrationForm.Username] = registrationForm.Password
+	err = h.userRepo.Save(registrationForm.Username, registrationForm.Password)
+	if err != nil {
+		writeErrorResponse(rw, http.StatusInternalServerError, "could not save user")
+		return
+	}
 
 	serverResponse := ServerResponse{
 		Status: "SUCCESS",
 	}
 	jsonResponse, err := json.Marshal(serverResponse)
 	if err != nil {
-		WriteErrorResponse(rw, http.StatusInternalServerError, "could not create response")
+		writeErrorResponse(rw, http.StatusInternalServerError, "could not create response")
 		return
 	}
 
@@ -51,7 +76,7 @@ func RegistrationHandler(rw http.ResponseWriter, r *http.Request) {
 
 const RefreshTokenCookieName = "refresh-token"
 
-func LoginHandler(rw http.ResponseWriter, r *http.Request) {
+func (h *DefaultHander) LoginHandler(rw http.ResponseWriter, r *http.Request) {
 	log.Println("login handler")
 
 	// TODO: if already logged in (has refresh valid token header) skip
@@ -59,32 +84,33 @@ func LoginHandler(rw http.ResponseWriter, r *http.Request) {
 	jsonForm, err := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	if err != nil {
-		WriteErrorResponse(rw, http.StatusInternalServerError, "could not read body")
+		writeErrorResponse(rw, http.StatusInternalServerError, "could not read body")
 		return
 	}
 
 	var loginForm LoginForm
 	err = json.Unmarshal(jsonForm, &loginForm)
 	if err != nil {
-		WriteErrorResponse(rw, http.StatusBadRequest, "could not parse json")
+		writeErrorResponse(rw, http.StatusBadRequest, "could not parse json")
 		return
 	}
 
 	// TODO: username validation
 	// TODO: password validation
 
-	hashedPass, ok := UserDb[loginForm.Username]
-	if !ok {
-		log.Printf("user %s does not exist", loginForm.Username)
-		WriteErrorResponse(rw, http.StatusUnauthorized, "wrong credentials")
+	user, err := h.userRepo.GetByUserName(loginForm.Username)
+	if err != nil {
+		log.Println(err)
+		writeErrorResponse(rw, http.StatusUnauthorized, "wrong credentials")
 		return
 	}
 
 	// TODO: unhash password
+	unhashedPassword := user.HashedPassword
 
-	if loginForm.Password != hashedPass {
+	if loginForm.Password != unhashedPassword {
 		log.Printf("wrong password for user %s", loginForm.Username)
-		WriteErrorResponse(rw, http.StatusUnauthorized, "wrong credentials")
+		writeErrorResponse(rw, http.StatusUnauthorized, "wrong credentials")
 		return
 	}
 
@@ -113,7 +139,7 @@ func LoginHandler(rw http.ResponseWriter, r *http.Request) {
 	}
 	jsonResponse, err := json.Marshal(serverResponse)
 	if err != nil {
-		WriteErrorResponse(rw, http.StatusInternalServerError, "could not create response")
+		writeErrorResponse(rw, http.StatusInternalServerError, "could not create response")
 		return
 	}
 
@@ -121,17 +147,25 @@ func LoginHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.Write(jsonResponse)
 }
 
-func RefreshHandler(rw http.ResponseWriter, r *http.Request) {
+func (h *DefaultHander) RefreshHandler(rw http.ResponseWriter, r *http.Request) {
 	refreshTokenCookie, err := r.Cookie(RefreshTokenCookieName)
 	if err != nil {
-		WriteErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
+		writeErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
 		return
 	}
 
 	// TODO: validate JWT
-	_ = refreshTokenCookie
 
-	// TODO: check DB for disallowed refresh tokens
+	// check if token is not black listed
+	_, err = h.blacklistedRefreshTokenRepo.GetByValue(refreshTokenCookie.Value)
+	if err != nil {
+		// if anything other than a NotFoundError, write an error response
+		_, ok := err.(*repository.NotFoundError)
+		if !ok {
+			writeErrorResponse(rw, http.StatusInternalServerError, "error validating")
+			return
+		}
+	}
 
 	log.Printf("auth successful for refresh token")
 
@@ -141,7 +175,8 @@ func RefreshHandler(rw http.ResponseWriter, r *http.Request) {
 	// TODO: create refresh JWT
 	refreshJWT := "refresh-jwt-12345"
 
-	// TODO: store old refresh token in disallowed refresh tokens DB
+	// store old refresh token in disallowed refresh tokens DB
+	h.blacklistedRefreshTokenRepo.Save(refreshTokenCookie.Value)
 
 	http.SetCookie(rw, &http.Cookie{
 		Name:     RefreshTokenCookieName,
@@ -160,7 +195,7 @@ func RefreshHandler(rw http.ResponseWriter, r *http.Request) {
 	}
 	jsonResponse, err := json.Marshal(serverResponse)
 	if err != nil {
-		WriteErrorResponse(rw, http.StatusInternalServerError, "could not create response")
+		writeErrorResponse(rw, http.StatusInternalServerError, "could not create response")
 		return
 	}
 
@@ -168,7 +203,11 @@ func RefreshHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.Write(jsonResponse)
 }
 
-func WriteErrorResponse(rw http.ResponseWriter, status int, message string) {
+func (h *DefaultHander) ApiDataHandler(rw http.ResponseWriter, r *http.Request) {
+	log.Println("in api data handler")
+}
+
+func writeErrorResponse(rw http.ResponseWriter, status int, message string) {
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(status)
 	serverResponse := &ServerResponse{
@@ -182,10 +221,6 @@ func WriteErrorResponse(rw http.ResponseWriter, status int, message string) {
 	}
 
 	rw.Write(jsonResponse)
-}
-
-func ApiDataHandler(rw http.ResponseWriter, r *http.Request) {
-	log.Println("in api data handler")
 }
 
 type RegistrationForm struct {
