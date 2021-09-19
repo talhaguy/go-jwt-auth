@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/talhaguy/go-jwt-auth/repository"
@@ -120,7 +121,7 @@ func (h *DefaultHander) LoginHandler(rw http.ResponseWriter, r *http.Request) {
 			accessJWT := "access-jwt-12345"
 
 			// TODO: create refresh JWT
-			refreshJWT := "refresh-jwt-12345"
+			refreshJWT := "refresh-jwt-" + strconv.FormatInt(time.Now().Unix(), 10)
 
 			// blacklist old refresh token
 			h.blacklistedRefreshTokenRepo.Save(refreshTokenCookie.Value)
@@ -189,7 +190,7 @@ func (h *DefaultHander) LoginHandler(rw http.ResponseWriter, r *http.Request) {
 	accessJWT := "access-jwt-12345"
 
 	// TODO: create refresh JWT
-	refreshJWT := "refresh-jwt-12345"
+	refreshJWT := "refresh-jwt-" + strconv.FormatInt(time.Now().Unix(), 10)
 
 	setRefreshTokenCookie(rw, refreshJWT)
 	jsonRes, err := createSuccessLoginResponse(accessJWT)
@@ -237,7 +238,7 @@ func (h *DefaultHander) RefreshHandler(rw http.ResponseWriter, r *http.Request) 
 	accessJWT := "access-jwt-12345"
 
 	// TODO: create refresh JWT
-	refreshJWT := "refresh-jwt-12345"
+	refreshJWT := "refresh-jwt-" + strconv.FormatInt(time.Now().Unix(), 10)
 
 	// store old refresh token in disallowed refresh tokens DB
 	h.blacklistedRefreshTokenRepo.Save(refreshTokenCookie.Value)
