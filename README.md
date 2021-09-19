@@ -18,7 +18,10 @@ func StartServer(port string) {
 		repository.NewDefaultUserRepository(),
 		repository.NewDefaultBlacklistedRefreshTokenRepository(),
 	)
-	router, _ := setupRoutes(handlers)
+
+	router, subRouter := route.SetupRoutes(handlers)
+	subRouter.HandleFunc("/data", ApiDataHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
+
 	server := &http.Server{
 		Handler:      router,
 		Addr:         "127.0.0.1:" + port,
@@ -31,6 +34,10 @@ func StartServer(port string) {
 }
 
 func main() {
-	route.StartServer("8080")
+	StartServer("8080")
+}
+
+func ApiDataHandler(rw http.ResponseWriter, r *http.Request) {
+	log.Println("API DATA HANDLER...")
 }
 ```

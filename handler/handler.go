@@ -16,7 +16,6 @@ type Handler interface {
 	RegistrationHandler(rw http.ResponseWriter, r *http.Request)
 	LoginHandler(rw http.ResponseWriter, r *http.Request)
 	RefreshHandler(rw http.ResponseWriter, r *http.Request)
-	ApiDataHandler(rw http.ResponseWriter, r *http.Request)
 }
 
 type DefaultHander struct {
@@ -294,10 +293,6 @@ func createSuccessLoginResponse(accessToken string) ([]byte, error) {
 	}
 
 	return jsonResponse, nil
-}
-
-func (h *DefaultHander) ApiDataHandler(rw http.ResponseWriter, r *http.Request) {
-	log.Println("in api data handler")
 }
 
 func writeErrorResponse(rw http.ResponseWriter, status int, message string) {
