@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/talhaguy/go-jwt-auth/repository"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Handler interface {
@@ -83,10 +84,15 @@ func (h *DefaultHander) RegistrationHandler(rw http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	// TODO: hash password
+	// hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(registrationForm.Password), 14)
+	if err != nil {
+		writeErrorResponse(rw, http.StatusInternalServerError, "could not use password")
+		return
+	}
 
 	log.Printf("registering user %s", registrationForm.Username)
-	err = h.userRepo.Save(registrationForm.Username, registrationForm.Password)
+	err = h.userRepo.Save(registrationForm.Username, string(hashedPassword))
 	if err != nil {
 		writeErrorResponse(rw, http.StatusInternalServerError, "could not save user")
 		return
@@ -189,10 +195,9 @@ func (h *DefaultHander) LoginHandler(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: unhash password
-	unhashedPassword := user.HashedPassword
-
-	if loginForm.Password != unhashedPassword {
+	// verify password
+	err = bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(loginForm.Password))
+	if err != nil {
 		log.Printf("wrong password for user %s", loginForm.Username)
 		writeErrorResponse(rw, http.StatusUnauthorized, "wrong credentials")
 		return
