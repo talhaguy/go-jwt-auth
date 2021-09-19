@@ -1,7 +1,5 @@
 package repository
 
-import "errors"
-
 type UserRepository interface {
 	GetByUserName(username string) (*User, error)
 	Save(username string, hashedPassword string) error
@@ -19,7 +17,7 @@ func NewDefaultUserRepository() *DefaultUserRepository {
 func (u *DefaultUserRepository) GetByUserName(username string) (*User, error) {
 	hashedPass, ok := userDb[username]
 	if !ok {
-		return &User{}, errors.New("user not found")
+		return &User{}, &NotFoundError{}
 	}
 
 	return &User{

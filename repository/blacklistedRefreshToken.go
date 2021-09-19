@@ -36,6 +36,7 @@ type BlackListedRefreshToken struct {
 	Value string
 }
 
+// TODO: put this error type in shared place as it is shared by user too
 type NotFoundError struct {
 }
 
