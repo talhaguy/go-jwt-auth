@@ -6,9 +6,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/talhaguy/go-jwt-auth/repository"
 )
 
@@ -21,15 +21,21 @@ type Handler interface {
 type DefaultHander struct {
 	userRepo                    repository.UserRepository
 	blacklistedRefreshTokenRepo repository.BlacklistedRefreshTokenRepository
+	accessTokenSecret           []byte
+	refreshTokenSecret          []byte
 }
 
 func NewDefaultHandler(
 	userRepo repository.UserRepository,
 	blacklistedRefreshTokenRepo repository.BlacklistedRefreshTokenRepository,
+	accessTokenSecret string,
+	refreshTokenSecret string,
 ) *DefaultHander {
 	return &DefaultHander{
 		userRepo:                    userRepo,
 		blacklistedRefreshTokenRepo: blacklistedRefreshTokenRepo,
+		accessTokenSecret:           []byte(accessTokenSecret),
+		refreshTokenSecret:          []byte(refreshTokenSecret),
 	}
 }
 
@@ -104,36 +110,45 @@ const RefreshTokenCookieName = "refresh-token"
 func (h *DefaultHander) LoginHandler(rw http.ResponseWriter, r *http.Request) {
 	log.Println("login handler")
 
-	// TODO: if already logged in (has refresh valid token header) skip
-	refreshTokenCookie, err := r.Cookie(RefreshTokenCookieName)
+	// if already logged in (has refresh valid token header), just give the success response
+	refreshTokenString, refreshToken, err := h.validateRequestRefreshToken(r)
 	if err == nil {
-		// TODO: verify token
-
-		// check if token is not black listed
-		isBlacklisted, err := h.checkIfRefreshTokenBlacklisted(refreshTokenCookie.Value)
-		if err != nil {
-			writeErrorResponse(rw, http.StatusInternalServerError, "error validating refresh token")
-			return
-		}
-		if !isBlacklisted {
-			// TODO: create access JWT
-			accessJWT := "access-jwt-12345"
-
-			// TODO: create refresh JWT
-			refreshJWT := "refresh-jwt-" + strconv.FormatInt(time.Now().Unix(), 10)
-
-			// blacklist old refresh token
-			h.blacklistedRefreshTokenRepo.Save(refreshTokenCookie.Value)
-
-			setRefreshTokenCookie(rw, refreshJWT)
-			jsonRes, err := createSuccessLoginResponse(accessJWT)
+		claims, err := getClaimsFromToken(refreshToken)
+		if err == nil {
+			// check if token is not black listed
+			isBlacklisted, err := h.checkIfRefreshTokenBlacklisted(refreshTokenString)
 			if err != nil {
-				writeErrorResponse(rw, http.StatusInternalServerError, "could not create response")
+				writeErrorResponse(rw, http.StatusInternalServerError, "error validating refresh token")
 				return
 			}
-			rw.Header().Set("Content-Type", "application/json")
-			rw.Write(jsonRes)
-			return
+			if !isBlacklisted {
+				// create access JWT
+				accessJWT, err := createAccessJWT(h.accessTokenSecret, claims.Username)
+				if err != nil {
+					writeErrorResponse(rw, http.StatusInternalServerError, "could not create access token")
+					return
+				}
+
+				// create refresh JWT
+				refreshJWT, err := createRefreshJWT(h.refreshTokenSecret, claims.Username)
+				if err != nil {
+					writeErrorResponse(rw, http.StatusInternalServerError, "could not create refresh token")
+					return
+				}
+
+				// blacklist old refresh token
+				h.blacklistedRefreshTokenRepo.Save(refreshTokenString)
+
+				setRefreshTokenCookie(rw, refreshJWT)
+				jsonRes, err := createSuccessLoginResponse(accessJWT)
+				if err != nil {
+					writeErrorResponse(rw, http.StatusInternalServerError, "could not create response")
+					return
+				}
+				rw.Header().Set("Content-Type", "application/json")
+				rw.Write(jsonRes)
+				return
+			}
 		}
 	}
 
@@ -185,11 +200,19 @@ func (h *DefaultHander) LoginHandler(rw http.ResponseWriter, r *http.Request) {
 
 	log.Printf("auth successful for user %s", loginForm.Username)
 
-	// TODO: create access JWT
-	accessJWT := "access-jwt-12345"
+	// create access JWT
+	accessJWT, err := createAccessJWT(h.accessTokenSecret, loginForm.Username)
+	if err != nil {
+		writeErrorResponse(rw, http.StatusInternalServerError, "could not create access token")
+		return
+	}
 
-	// TODO: create refresh JWT
-	refreshJWT := "refresh-jwt-" + strconv.FormatInt(time.Now().Unix(), 10)
+	// reate refresh JWT
+	refreshJWT, err := createRefreshJWT(h.refreshTokenSecret, loginForm.Username)
+	if err != nil {
+		writeErrorResponse(rw, http.StatusInternalServerError, "could not create refresh token")
+		return
+	}
 
 	setRefreshTokenCookie(rw, refreshJWT)
 	jsonRes, err := createSuccessLoginResponse(accessJWT)
@@ -201,46 +224,72 @@ func (h *DefaultHander) LoginHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.Write(jsonRes)
 }
 
-// TODO: implement stub
-func validateUsername(username string) bool {
-	return true
-}
+func (h *DefaultHander) validateRequestRefreshToken(r *http.Request) (string, *jwt.Token, error) {
+	refreshTokenCookie, err := r.Cookie(RefreshTokenCookieName)
+	if err != nil {
+		return "", nil, err
+	}
 
-// TODO: implement stub
-func validatePassword(password string) bool {
-	return true
+	isTokenValid, token, err := verifyRefreshToken(string(h.refreshTokenSecret), refreshTokenCookie.Value)
+	if err != nil {
+		return "", nil, err
+	}
+	if !isTokenValid {
+		return "", nil, errors.New("invalid token")
+	}
+
+	return refreshTokenCookie.Value, token, nil
 }
 
 func (h *DefaultHander) RefreshHandler(rw http.ResponseWriter, r *http.Request) {
-	refreshTokenCookie, err := r.Cookie(RefreshTokenCookieName)
+	log.Println("refresh handler")
+
+	refreshTokenString, refreshToken, err := h.validateRequestRefreshToken(r)
 	if err != nil {
+		log.Println("could not verify refresh token")
 		writeErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
 		return
 	}
 
-	// TODO: validate JWT
+	// get claims from refresh token
+	claims, err := getClaimsFromToken(refreshToken)
+	if err != nil {
+		log.Println("could not get claims from refresh token")
+		writeErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
+		return
+	}
 
 	// check if token is not black listed
-	isBlacklisted, err := h.checkIfRefreshTokenBlacklisted(refreshTokenCookie.Value)
+	isBlacklisted, err := h.checkIfRefreshTokenBlacklisted(refreshTokenString)
 	if err != nil {
+		log.Println("error checking if refresh token is blacklisted")
 		writeErrorResponse(rw, http.StatusInternalServerError, "error validating")
 		return
 	}
 	if isBlacklisted {
+		log.Println("refresh token is blacklisted")
 		writeErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
 		return
 	}
 
 	log.Printf("auth successful for refresh token")
 
-	// TODO: create access JWT
-	accessJWT := "access-jwt-12345"
+	// create access JWT
+	accessJWT, err := createAccessJWT(h.accessTokenSecret, claims.Username)
+	if err != nil {
+		writeErrorResponse(rw, http.StatusInternalServerError, "could not create access token")
+		return
+	}
 
-	// TODO: create refresh JWT
-	refreshJWT := "refresh-jwt-" + strconv.FormatInt(time.Now().Unix(), 10)
+	// reate refresh JWT
+	refreshJWT, err := createRefreshJWT(h.refreshTokenSecret, claims.Username)
+	if err != nil {
+		writeErrorResponse(rw, http.StatusInternalServerError, "could not create refresh token")
+		return
+	}
 
 	// store old refresh token in disallowed refresh tokens DB
-	h.blacklistedRefreshTokenRepo.Save(refreshTokenCookie.Value)
+	h.blacklistedRefreshTokenRepo.Save(refreshTokenString)
 
 	setRefreshTokenCookie(rw, refreshJWT)
 	jsonRes, err := createSuccessLoginResponse(accessJWT)
@@ -309,6 +358,11 @@ func writeErrorResponse(rw http.ResponseWriter, status int, message string) {
 	}
 
 	rw.Write(jsonResponse)
+}
+
+type CustomClaims struct {
+	Username string `json:"username"`
+	jwt.StandardClaims
 }
 
 type RegistrationForm struct {

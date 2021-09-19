@@ -41,5 +41,5 @@ type NotFoundError struct {
 }
 
 func (e *NotFoundError) Error() string {
-	return "not found"
+	return "not found in db"
 }
