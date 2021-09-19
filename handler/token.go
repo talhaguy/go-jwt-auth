@@ -50,18 +50,26 @@ func getClaimsFromToken(token *jwt.Token) (*CustomClaims, error) {
 	return claims, nil
 }
 
-func verifyAccessToken(tokenSecret string, tokenString string) (bool, *jwt.Token, error) {
+func verifyAccessToken(tokenSecret []byte, tokenString string) (bool, *jwt.Token, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return tokenSecret, nil
 	})
+	if err != nil {
+		log.Printf("error parsing access token - %s", err)
+		return false, nil, err
+	}
 
 	return token.Valid, token, err
 }
 
-func verifyRefreshToken(tokenSecret string, tokenString string) (bool, *jwt.Token, error) {
+func verifyRefreshToken(tokenSecret []byte, tokenString string) (bool, *jwt.Token, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return tokenSecret, nil
 	})
+	if err != nil {
+		log.Printf("error parsing refresh token - %s", err)
+		return false, nil, err
+	}
 
 	return token.Valid, token, err
 }

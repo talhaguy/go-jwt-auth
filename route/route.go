@@ -17,7 +17,7 @@ func SetupRoutes(handlers handler.Handler) (*mux.Router, *mux.Router) {
 	subRouter := mux.NewRouter().PathPrefix("/api").Subrouter().StrictSlash(true)
 
 	router.PathPrefix("/api").Handler(negroni.New(
-		negroni.HandlerFunc(handler.VerifyAccessToken),
+		negroni.HandlerFunc(handlers.VerifyAccessToken),
 		negroni.Wrap(subRouter),
 	))
 

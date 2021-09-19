@@ -1,13 +1,18 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
 	"strings"
 )
 
-func VerifyAccessToken(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+type ContextKey string
+
+const UserContextKey ContextKey = "username"
+
+func (h *DefaultHander) VerifyAccessToken(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	log.Println("verifying access jwt")
 
 	accessTokenHeaderValue, ok := r.Header["Authorization"]
@@ -28,9 +33,26 @@ func VerifyAccessToken(rw http.ResponseWriter, r *http.Request, next http.Handle
 
 	log.Printf("DEBUG - got token - %s", token)
 
-	// TODO: verify access JWT
+	// verify access JWT
+	isValid, accessToken, err := verifyAccessToken(h.accessTokenSecret, token)
+	if err != nil {
+		writeErrorResponse(rw, http.StatusInternalServerError, "could not verify access")
+		return
+	}
+	if !isValid {
+		writeErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
+		return
+	}
+	claims, err := getClaimsFromToken(accessToken)
+	if err != nil {
+		writeErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
+		return
+	}
 
-	next(rw, r)
+	// send user information to next handler
+	ctx := r.Context()
+	ctx = context.WithValue(ctx, UserContextKey, claims.Username)
+	next(rw, r.WithContext(ctx))
 }
 
 func getTokenFromAuthHeader(headerVal string) (string, error) {

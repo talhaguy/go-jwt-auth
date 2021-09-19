@@ -37,5 +37,6 @@ func main() {
 }
 
 func ApiDataHandler(rw http.ResponseWriter, r *http.Request) {
-	log.Println("API DATA HANDLER...")
+	username := r.Context().Value(handler.UserContextKey)
+	log.Printf("API DATA HANDLER for %s", username)
 }

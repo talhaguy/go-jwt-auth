@@ -17,6 +17,7 @@ type Handler interface {
 	RegistrationHandler(rw http.ResponseWriter, r *http.Request)
 	LoginHandler(rw http.ResponseWriter, r *http.Request)
 	RefreshHandler(rw http.ResponseWriter, r *http.Request)
+	VerifyAccessToken(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc)
 }
 
 type DefaultHander struct {
@@ -235,7 +236,7 @@ func (h *DefaultHander) validateRequestRefreshToken(r *http.Request) (string, *j
 		return "", nil, err
 	}
 
-	isTokenValid, token, err := verifyRefreshToken(string(h.refreshTokenSecret), refreshTokenCookie.Value)
+	isTokenValid, token, err := verifyRefreshToken(h.refreshTokenSecret, refreshTokenCookie.Value)
 	if err != nil {
 		return "", nil, err
 	}
