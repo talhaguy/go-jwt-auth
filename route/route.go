@@ -1,34 +1,14 @@
-package server
+package route
 
 import (
-	"log"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/talhaguy/go-jwt-auth/handler"
-	"github.com/talhaguy/go-jwt-auth/repository"
 	"github.com/urfave/negroni"
 )
 
-func StartServer(port string) {
-	handlers := handler.NewDefaultHandler(
-		repository.NewDefaultUserRepository(),
-		repository.NewDefaultBlacklistedRefreshTokenRepository(),
-	)
-	router := setupRoutes(handlers)
-	server := &http.Server{
-		Handler:      router,
-		Addr:         "127.0.0.1:" + port,
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
-	}
-
-	log.Printf("starting server on port %s", port)
-	log.Fatal(server.ListenAndServe())
-}
-
-func setupRoutes(handlers handler.Handler) *mux.Router {
+func SetupRoutes(handlers handler.Handler) (*mux.Router, *mux.Router) {
 	router := mux.NewRouter()
 	router.HandleFunc("/register", handlers.RegistrationHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
 	router.HandleFunc("/login", handlers.LoginHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
@@ -42,5 +22,5 @@ func setupRoutes(handlers handler.Handler) *mux.Router {
 		negroni.Wrap(subRouter),
 	))
 
-	return router
+	return router, subRouter
 }
