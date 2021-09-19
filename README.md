@@ -1,3 +1,9 @@
+# Go JWT Auth
+
+**Note**: This repo is in the early stages and may change/break.
+
+This repo is meant to be imported into your current Go server and does the work to set up JWT authentication.
+
 # How to use
 
 ```go
@@ -17,6 +23,8 @@ func StartServer(port string) {
 	handlers := handler.NewDefaultHandler(
 		repository.NewDefaultUserRepository(),
 		repository.NewDefaultBlacklistedRefreshTokenRepository(),
+		"my-secret", // NOTE: Remember not to commit your secrets
+		"my-secret", // NOTE: Remember not to commit your secrets
 	)
 
 	router, subRouter := route.SetupRoutes(handlers)
@@ -38,6 +46,7 @@ func main() {
 }
 
 func ApiDataHandler(rw http.ResponseWriter, r *http.Request) {
-	log.Println("API DATA HANDLER...")
+	username := r.Context().Value(handler.UserContextKey)
+	log.Printf("API DATA HANDLER for %s", username)
 }
 ```
