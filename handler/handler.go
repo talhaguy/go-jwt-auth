@@ -78,7 +78,10 @@ func (h *DefaultHander) RegistrationHandler(rw http.ResponseWriter, r *http.Requ
 
 	// check if user exists in DB validation
 	_, err = h.userRepo.GetByUserName(registrationForm.Username)
-	if err != nil {
+	if err == nil {
+		writeErrorResponse(rw, http.StatusBadRequest, "user already exists")
+		return
+	} else {
 		// if any error other than NotFoundError, write an error response
 		_, ok := err.(*repository.NotFoundError)
 		if !ok {
