@@ -302,6 +302,7 @@ func (h *DefaultHander) RefreshHandler(rw http.ResponseWriter, r *http.Request) 
 	refreshTokenString, refreshToken, err := h.validateRequestRefreshToken(r)
 	if err != nil {
 		log.Println("could not verify refresh token")
+		log.Printf("ERROR: %s", err.Error())
 		writeErrorResponse(rw, http.StatusUnauthorized, "unauthorized access")
 		return
 	}
