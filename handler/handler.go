@@ -403,7 +403,6 @@ func setRefreshTokenCookie(rw http.ResponseWriter, refreshToken string) {
 		Value:    refreshToken,
 		Expires:  time.Now().Add(time.Minute * 30),
 		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
 	})
 }
 

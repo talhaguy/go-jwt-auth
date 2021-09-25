@@ -25,10 +25,11 @@ func SetupRoutes(handler handler.Handler, allowedOrigins []string) (http.Handler
 	))
 
 	// enable cors
+	allowedCredentialsOpt := handlers.AllowCredentials()
 	allowedMethodsOpt := handlers.AllowedMethods([]string{"POST", "GET"})
 	allowedOriginsOpt := handlers.AllowedOrigins(allowedOrigins)
 	allowedHeadersOpt := handlers.AllowedHeaders([]string{"Content-Type", "Authorization"})
-	corsEnabledRouter := handlers.CORS(allowedMethodsOpt, allowedOriginsOpt, allowedHeadersOpt)(router)
+	corsEnabledRouter := handlers.CORS(allowedCredentialsOpt, allowedMethodsOpt, allowedOriginsOpt, allowedHeadersOpt)(router)
 
 	return corsEnabledRouter, subRouter
 }
