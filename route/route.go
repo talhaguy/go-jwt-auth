@@ -14,8 +14,8 @@ func SetupRoutes(handler handler.Handler, allowedOrigins []string) (http.Handler
 	router := mux.NewRouter()
 	router.HandleFunc("/register", handler.RegistrationHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
 	router.HandleFunc("/login", handler.LoginHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
-	router.HandleFunc("/refresh", handler.RefreshHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
-	router.HandleFunc("/isLoggedIn", handler.IsLoggedIn).Methods(http.MethodGet).Headers("Content-Type", "application/json")
+	router.HandleFunc("/refresh", handler.RefreshHandler).Methods(http.MethodPost)
+	router.HandleFunc("/isLoggedIn", handler.IsLoggedIn).Methods(http.MethodGet)
 
 	subRouter := mux.NewRouter().PathPrefix("/api").Subrouter().StrictSlash(true)
 
