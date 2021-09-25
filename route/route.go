@@ -3,23 +3,32 @@ package route
 import (
 	"net/http"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/talhaguy/go-jwt-auth/handler"
 	"github.com/urfave/negroni"
 )
 
-func SetupRoutes(handlers handler.Handler) (*mux.Router, *mux.Router) {
+func SetupRoutes(handler handler.Handler, allowedOrigins []string) (http.Handler, *mux.Router) {
+	// TODO: change name of handler parameter to be less confusing with gorilla handlers package
 	router := mux.NewRouter()
-	router.HandleFunc("/register", handlers.RegistrationHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
-	router.HandleFunc("/login", handlers.LoginHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
-	router.HandleFunc("/refresh", handlers.RefreshHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
+	router.HandleFunc("/register", handler.RegistrationHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
+	router.HandleFunc("/login", handler.LoginHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
+	router.HandleFunc("/refresh", handler.RefreshHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
+	router.HandleFunc("/isLoggedIn", handler.IsLoggedIn).Methods(http.MethodGet).Headers("Content-Type", "application/json")
 
 	subRouter := mux.NewRouter().PathPrefix("/api").Subrouter().StrictSlash(true)
 
 	router.PathPrefix("/api").Handler(negroni.New(
-		negroni.HandlerFunc(handlers.VerifyAccessToken),
+		negroni.HandlerFunc(handler.VerifyAccessToken),
 		negroni.Wrap(subRouter),
 	))
 
-	return router, subRouter
+	// enable cors
+	allowedMethodsOpt := handlers.AllowedMethods([]string{"POST", "GET"})
+	allowedOriginsOpt := handlers.AllowedOrigins(allowedOrigins)
+	allowedHeadersOpt := handlers.AllowedHeaders([]string{"Content-Type"})
+	corsEnabledRouter := handlers.CORS(allowedMethodsOpt, allowedOriginsOpt, allowedHeadersOpt)(router)
+
+	return corsEnabledRouter, subRouter
 }

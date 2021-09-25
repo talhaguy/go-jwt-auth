@@ -27,7 +27,7 @@ func StartServer(port string) {
 		"my-secret", // NOTE: Remember not to commit your secrets
 	)
 
-	router, subRouter := route.SetupRoutes(handlers)
+	router, subRouter := route.SetupRoutes(handlers, []string{"http://localhost:8000"})
 	subRouter.HandleFunc("/data", ApiDataHandler).Methods(http.MethodPost).Headers("Content-Type", "application/json")
 
 	server := &http.Server{

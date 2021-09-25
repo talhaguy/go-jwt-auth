@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -17,6 +18,7 @@ type Handler interface {
 	RegistrationHandler(rw http.ResponseWriter, r *http.Request)
 	LoginHandler(rw http.ResponseWriter, r *http.Request)
 	RefreshHandler(rw http.ResponseWriter, r *http.Request)
+	IsLoggedIn(rw http.ResponseWriter, r *http.Request)
 	VerifyAccessToken(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc)
 }
 
@@ -247,6 +249,50 @@ func (h *DefaultHander) validateRequestRefreshToken(r *http.Request) (string, *j
 	return refreshTokenCookie.Value, token, nil
 }
 
+func (h *DefaultHander) validateRequestAccessToken(r *http.Request) (bool, *jwt.Token, *CustomClaims, error) {
+	accessTokenHeaderValue, ok := r.Header["Authorization"]
+	if !ok {
+		return false, nil, nil, errors.New("missing access token")
+	}
+
+	log.Printf("DEBUG - token header val - %s", accessTokenHeaderValue)
+
+	token, err := getTokenFromAuthHeader(accessTokenHeaderValue[0])
+	if err != nil {
+		return false, nil, nil, err
+	}
+
+	log.Printf("DEBUG - got token - %s", token)
+
+	// verify access JWT
+	isValid, accessToken, err := verifyAccessToken(h.accessTokenSecret, token)
+	if err != nil {
+		return false, nil, nil, err
+	}
+	if !isValid {
+		return false, accessToken, nil, nil
+	}
+	claims, err := getClaimsFromToken(accessToken)
+	if err != nil {
+		return isValid, accessToken, nil, err
+	}
+
+	return true, accessToken, claims, nil
+}
+
+func getTokenFromAuthHeader(headerVal string) (string, error) {
+	const tokenPrefix = "Bearer "
+	pos := strings.Index(headerVal, tokenPrefix)
+	if pos == -1 {
+		return "", errors.New("incorrect format")
+	}
+	pos = pos + len(tokenPrefix)
+
+	token := headerVal[pos:]
+
+	return token, nil
+}
+
 func (h *DefaultHander) RefreshHandler(rw http.ResponseWriter, r *http.Request) {
 	log.Println("refresh handler")
 
@@ -306,6 +352,34 @@ func (h *DefaultHander) RefreshHandler(rw http.ResponseWriter, r *http.Request) 
 
 	rw.Header().Set("Content-Type", "application/json")
 	rw.Write(jsonRes)
+}
+
+func (h *DefaultHander) IsLoggedIn(rw http.ResponseWriter, r *http.Request) {
+	isLoggedIn := true
+
+	isAccessTokenValid, _, _, err := h.validateRequestAccessToken(r)
+	if !isAccessTokenValid || err != nil {
+		log.Println("unauthorized access")
+		if err != nil {
+			log.Printf("ERROR: %s", err.Error())
+		}
+		isLoggedIn = false
+	}
+
+	response := IsLoggedInServerResponse{
+		ServerResponse: ServerResponse{
+			Status: "SUCCESS",
+		},
+		Data: IsLoggedInServerResponseData{
+			IsLoggedIn: isLoggedIn,
+		},
+	}
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		writeErrorResponse(rw, http.StatusInternalServerError, "could not create response")
+	}
+	rw.Header().Set("Content-Type", "application/json")
+	rw.Write(jsonResponse)
 }
 
 func (h *DefaultHander) checkIfRefreshTokenBlacklisted(value string) (bool, error) {
@@ -393,4 +467,13 @@ type AccessTokenServerResponse struct {
 
 type AccessTokenServerResponseData struct {
 	AccessToken string `json:"accessToken"`
+}
+
+type IsLoggedInServerResponse struct {
+	ServerResponse
+	Data IsLoggedInServerResponseData `json:"data"`
+}
+
+type IsLoggedInServerResponseData struct {
+	IsLoggedIn bool `json:"isLoggedIn"`
 }
