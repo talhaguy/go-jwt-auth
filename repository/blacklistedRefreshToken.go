@@ -5,17 +5,17 @@ type BlacklistedRefreshTokenRepository interface {
 	Save(value string) error
 }
 
-var blackListedTokenDb = make(map[string]string)
+var inMemoryblackListedTokenDb = make(map[string]string)
 
-type DefaultBlacklistedRefreshTokenRepository struct {
+type InMemoryBlacklistedRefreshTokenRepository struct {
 }
 
-func NewDefaultBlacklistedRefreshTokenRepository() *DefaultBlacklistedRefreshTokenRepository {
-	return &DefaultBlacklistedRefreshTokenRepository{}
+func NewInMemoryBlacklistedRefreshTokenRepository() *InMemoryBlacklistedRefreshTokenRepository {
+	return &InMemoryBlacklistedRefreshTokenRepository{}
 }
 
-func (b *DefaultBlacklistedRefreshTokenRepository) GetByValue(value string) (*BlackListedRefreshToken, error) {
-	tokenValue, ok := blackListedTokenDb[value]
+func (r *InMemoryBlacklistedRefreshTokenRepository) GetByValue(value string) (*BlackListedRefreshToken, error) {
+	tokenValue, ok := inMemoryblackListedTokenDb[value]
 	if !ok {
 		return &BlackListedRefreshToken{}, &NotFoundError{}
 	}
@@ -26,8 +26,8 @@ func (b *DefaultBlacklistedRefreshTokenRepository) GetByValue(value string) (*Bl
 	}, nil
 }
 
-func (b *DefaultBlacklistedRefreshTokenRepository) Save(value string) error {
-	blackListedTokenDb[value] = value
+func (r *InMemoryBlacklistedRefreshTokenRepository) Save(value string) error {
+	inMemoryblackListedTokenDb[value] = value
 	return nil
 }
 

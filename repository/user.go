@@ -5,17 +5,17 @@ type UserRepository interface {
 	Save(username string, hashedPassword string) error
 }
 
-var userDb = make(map[string]string)
+var inMemoryUserDb = make(map[string]string)
 
-type DefaultUserRepository struct {
+type InMemoryUserRepository struct {
 }
 
-func NewDefaultUserRepository() *DefaultUserRepository {
-	return &DefaultUserRepository{}
+func NewInMemoryUserRepository() *InMemoryUserRepository {
+	return &InMemoryUserRepository{}
 }
 
-func (u *DefaultUserRepository) GetByUserName(username string) (*User, error) {
-	hashedPass, ok := userDb[username]
+func (r *InMemoryUserRepository) GetByUserName(username string) (*User, error) {
+	hashedPass, ok := inMemoryUserDb[username]
 	if !ok {
 		return &User{}, &NotFoundError{}
 	}
@@ -26,8 +26,8 @@ func (u *DefaultUserRepository) GetByUserName(username string) (*User, error) {
 	}, nil
 }
 
-func (u *DefaultUserRepository) Save(username string, hashedPassword string) error {
-	userDb[username] = hashedPassword
+func (r *InMemoryUserRepository) Save(username string, hashedPassword string) error {
+	inMemoryUserDb[username] = hashedPassword
 	return nil
 }
 

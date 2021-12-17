@@ -27,11 +27,11 @@ func main() {
 	port := "8080"
 
 	// 1) Create the route handlers struct
-	handlers := handler.NewDefaultHandler(
+	handlers := handler.NewDefaultRouteHandler(
 		// 1.1) Use a provided or custom user repository of your choice
-		repository.NewDefaultUserRepository(),
+		repository.NewInMemoryUserRepository(),
 		// 1.2) Use a provided or custom blacklisted repository of your choice
-		repository.NewDefaultBlacklistedRefreshTokenRepository(),
+		repository.NewInMemoryBlacklistedRefreshTokenRepository(),
 		"my-access-token-secret", // NOTE: Remember not to commit your secrets
 		"my-refresh-token-secret", // NOTE: Remember not to commit your secrets
 	)
@@ -40,7 +40,7 @@ func main() {
 	router, subRouter := route.SetupRoutes(
 		handlers,
 		// 2.1) Pass in allowed cross origin domains
-		[]string{"http://localhost:8000"}
+		[]string{"http://localhost:8000"},
 	)
 
 	// 3) Add protected paths to the subRouter
@@ -72,6 +72,7 @@ The following routes will be set up:
 #### /register
 
 Method: POST
+
 Headers: `Content-Type: application/json`
 
 Expected request body:
@@ -88,6 +89,7 @@ Registers a user using the configured user repository.
 #### /login
 
 Method: POST
+
 Headers: `Content-Type: application/json`
 
 Expected request body:
@@ -110,6 +112,7 @@ If a the refresh token cookie, `refresh-token`, is present, will provide back an
 #### /isLoggedIn
 
 Method: GET
+
 Headers: `Authorization: Bearer USE_ACCESS_JWT_HERE`
 
 Will return whether or not a user is logged in based on if the access JWT is valid.
@@ -126,14 +129,14 @@ Repositories are a means to access data from storage. Some are provided in the `
 
 #### User Repositories
 
-- `repository.DefaultUserRepository`
+- `repository.InMemoryUserRepository`
   - An in-memory user key-value store. Useful for testing or prototyping. Do NOT use in production.
 
 Use your own custom repository by implementing the `repository.UserRepository` interface.
 
 #### Blacklisted Token Repositories
 
-- `repository.DefaultBlacklistedRefreshTokenRepository`
+- `repository.InMemoryBlacklistedRefreshTokenRepository`
   - An in-memory token key-value store. Useful for testing or prototyping. Do NOT use in production.
 
 Use your own custom repository by implementing the `repository.BlacklistedRefreshTokenRepository` interface.

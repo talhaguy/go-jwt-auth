@@ -10,7 +10,7 @@ type ContextKey string
 
 const UserContextKey ContextKey = "username"
 
-func (h *DefaultHander) VerifyAccessToken(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+func (h *DefaultRouteHander) VerifyAccessToken(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	log.Println("verifying access jwt")
 
 	isAccessTokenValid, _, claims, err := h.validateRequestAccessToken(r)

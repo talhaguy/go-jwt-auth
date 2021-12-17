@@ -14,7 +14,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type Handler interface {
+type RouteHandler interface {
 	RegistrationHandler(rw http.ResponseWriter, r *http.Request)
 	LoginHandler(rw http.ResponseWriter, r *http.Request)
 	RefreshHandler(rw http.ResponseWriter, r *http.Request)
@@ -22,20 +22,20 @@ type Handler interface {
 	VerifyAccessToken(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc)
 }
 
-type DefaultHander struct {
+type DefaultRouteHander struct {
 	userRepo                    repository.UserRepository
 	blacklistedRefreshTokenRepo repository.BlacklistedRefreshTokenRepository
 	accessTokenSecret           []byte
 	refreshTokenSecret          []byte
 }
 
-func NewDefaultHandler(
+func NewDefaultRouteHandler(
 	userRepo repository.UserRepository,
 	blacklistedRefreshTokenRepo repository.BlacklistedRefreshTokenRepository,
 	accessTokenSecret string,
 	refreshTokenSecret string,
-) *DefaultHander {
-	return &DefaultHander{
+) *DefaultRouteHander {
+	return &DefaultRouteHander{
 		userRepo:                    userRepo,
 		blacklistedRefreshTokenRepo: blacklistedRefreshTokenRepo,
 		accessTokenSecret:           []byte(accessTokenSecret),
@@ -43,7 +43,7 @@ func NewDefaultHandler(
 	}
 }
 
-func (h *DefaultHander) RegistrationHandler(rw http.ResponseWriter, r *http.Request) {
+func (h *DefaultRouteHander) RegistrationHandler(rw http.ResponseWriter, r *http.Request) {
 	log.Println("registration handler")
 
 	jsonForm, err := ioutil.ReadAll(r.Body)
@@ -119,7 +119,7 @@ func (h *DefaultHander) RegistrationHandler(rw http.ResponseWriter, r *http.Requ
 
 const RefreshTokenCookieName = "refresh-token"
 
-func (h *DefaultHander) LoginHandler(rw http.ResponseWriter, r *http.Request) {
+func (h *DefaultRouteHander) LoginHandler(rw http.ResponseWriter, r *http.Request) {
 	log.Println("login handler")
 
 	// if already logged in (has refresh valid token header), just give the success response
@@ -235,7 +235,7 @@ func (h *DefaultHander) LoginHandler(rw http.ResponseWriter, r *http.Request) {
 	rw.Write(jsonRes)
 }
 
-func (h *DefaultHander) validateRequestRefreshToken(r *http.Request) (string, *jwt.Token, error) {
+func (h *DefaultRouteHander) validateRequestRefreshToken(r *http.Request) (string, *jwt.Token, error) {
 	refreshTokenCookie, err := r.Cookie(RefreshTokenCookieName)
 	if err != nil {
 		return "", nil, err
@@ -252,7 +252,7 @@ func (h *DefaultHander) validateRequestRefreshToken(r *http.Request) (string, *j
 	return refreshTokenCookie.Value, token, nil
 }
 
-func (h *DefaultHander) validateRequestAccessToken(r *http.Request) (bool, *jwt.Token, *CustomClaims, error) {
+func (h *DefaultRouteHander) validateRequestAccessToken(r *http.Request) (bool, *jwt.Token, *CustomClaims, error) {
 	accessTokenHeaderValue, ok := r.Header["Authorization"]
 	if !ok {
 		return false, nil, nil, errors.New("missing access token")
@@ -296,7 +296,7 @@ func getTokenFromAuthHeader(headerVal string) (string, error) {
 	return token, nil
 }
 
-func (h *DefaultHander) RefreshHandler(rw http.ResponseWriter, r *http.Request) {
+func (h *DefaultRouteHander) RefreshHandler(rw http.ResponseWriter, r *http.Request) {
 	log.Println("refresh handler")
 
 	refreshTokenString, refreshToken, err := h.validateRequestRefreshToken(r)
@@ -358,7 +358,7 @@ func (h *DefaultHander) RefreshHandler(rw http.ResponseWriter, r *http.Request) 
 	rw.Write(jsonRes)
 }
 
-func (h *DefaultHander) IsLoggedIn(rw http.ResponseWriter, r *http.Request) {
+func (h *DefaultRouteHander) IsLoggedIn(rw http.ResponseWriter, r *http.Request) {
 	isLoggedIn := true
 
 	isAccessTokenValid, _, _, err := h.validateRequestAccessToken(r)
@@ -386,7 +386,7 @@ func (h *DefaultHander) IsLoggedIn(rw http.ResponseWriter, r *http.Request) {
 	rw.Write(jsonResponse)
 }
 
-func (h *DefaultHander) checkIfRefreshTokenBlacklisted(value string) (bool, error) {
+func (h *DefaultRouteHander) checkIfRefreshTokenBlacklisted(value string) (bool, error) {
 	_, err := h.blacklistedRefreshTokenRepo.GetByValue(value)
 	if err != nil {
 		_, ok := err.(*repository.NotFoundError)
