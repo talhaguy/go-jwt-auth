@@ -60,6 +60,7 @@ func main() {
 }
 
 func ApiDataHandler(rw http.ResponseWriter, r *http.Request) {
+	// Note that the username is available in the context
 	username := r.Context().Value(handler.UserContextKey)
 	log.Printf("API DATA HANDLER for %s", username)
 }
@@ -121,7 +122,7 @@ Will return whether or not a user is logged in based on if the access JWT is val
 
 Headers: `Authorization: Bearer USE_ACCESS_JWT_HERE`
 
-Using the subrouter returned from `route.SetupRoutes` you can set up your own authenticated routes.
+Using the subrouter returned from `route.SetupRoutes` you can set up your own authenticated routes. The username is available in the context through `r.Context().Value(handler.UserContextKey)`.
 
 ### Repositories
 
